@@ -7,10 +7,16 @@
   "plugins": [
     {
       "name": "dev-browser",
-      "source": "./plugins/dev-browser",
+      "source": "./dev-browser",
       "description": "Browser automation skill with persistent page state for developers and AI agents",
       "version": "1.0.0",
-      "keywords": ["browser", "playwright", "automation", "testing", "debugging"]
+      "keywords": [
+        "browser",
+        "playwright",
+        "automation",
+        "testing",
+        "debugging"
+      ]
     }
   ],
   "metadata": {
