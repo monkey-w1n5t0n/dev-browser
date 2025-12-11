@@ -33,7 +33,9 @@ In practice, Claude will often explore a page step-by-step first, then generate 
 
 ## Installation
 
-### Step 1: Add the Marketplace
+### For Claude Code (Plugin)
+
+#### Step 1: Add the Marketplace
 
 In Claude Code, run:
 
@@ -41,17 +43,48 @@ In Claude Code, run:
 /plugin marketplace add sawyerhood/dev-browser
 ```
 
-### Step 2: Install the Plugin
+#### Step 2: Install the Plugin
 
 ```
 /plugin install dev-browser@sawyerhood/dev-browser
 ```
 
-### Step 3: Use It!
+#### Step 3: Use It!
 
 Prompt Claude to use it!
 
 > **Restart Claude Code** after installation to activate the plugin.
+
+### For Codex CLI (Skill)
+
+#### Step 1: Enable Skills Feature
+
+Add to your `~/.codex/config.toml`:
+
+```toml
+[features]
+skills = true
+```
+
+#### Step 2: Clone and Install the Skill
+
+```bash
+# Clone the repository
+git clone https://github.com/sawyerhood/dev-browser.git
+
+# Create symlink to the skill
+cd dev-browser
+mkdir -p ~/.codex/skills
+ln -s "$(pwd)/skills/dev-browser" ~/.codex/skills/dev-browser
+```
+
+#### Step 3: Restart Codex
+
+```bash
+codex
+```
+
+Codex will now automatically discover and load the dev-browser skill. You can verify it loaded by checking for the skill in the startup output.
 
 ## Usage
 
