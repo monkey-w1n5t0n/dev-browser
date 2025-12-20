@@ -22,12 +22,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
-          cache-dependency-path: skills/dev-browser/package-lock.json
 
       - name: Install dependencies
         working-directory: skills/dev-browser
-        run: npm ci
+        run: npm install
 
       - name: TypeScript check
         working-directory: skills/dev-browser
@@ -44,12 +42,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
-          cache-dependency-path: skills/dev-browser/package-lock.json
 
       - name: Install dependencies
         working-directory: skills/dev-browser
-        run: npm ci
+        run: npm install
 
       - name: Install Playwright browsers
         working-directory: skills/dev-browser
