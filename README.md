@@ -15,6 +15,41 @@ A browser automation plugin for [Claude Code](https://docs.anthropic.com/en/docs
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI installed
 - [Node.js](https://nodejs.org) (v18 or later) with npm
 
+### NixOS Users
+
+Dev Browser automatically detects NixOS and uses your system's Chromium instead of Playwright's bundled browser (which doesn't work on NixOS due to FHS issues).
+
+**Option 1: Install Chromium (recommended)**
+
+Add to your NixOS configuration:
+
+```nix
+environment.systemPackages = [ pkgs.chromium ];
+```
+
+Or use temporarily:
+
+```bash
+nix-shell -p chromium
+```
+
+**Option 2: Use extension mode**
+
+The Chrome extension controls your existing browser, avoiding Playwright entirely:
+
+```bash
+npm run start-extension
+```
+
+See the [Chrome Extension](#chrome-extension-optional) section below.
+
+**Option 3: Use PLAYWRIGHT_BROWSERS_PATH**
+
+```bash
+nix-shell -p playwright-driver.browsers
+export PLAYWRIGHT_BROWSERS_PATH=$(nix-build '<nixpkgs>' -A playwright-driver.browsers --no-out-link)
+```
+
 ## Installation
 
 ### Claude Code

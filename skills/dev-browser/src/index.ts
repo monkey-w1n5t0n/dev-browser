@@ -1,6 +1,7 @@
 import express, { type Express, type Request, type Response } from "express";
 import { chromium, type BrowserContext, type Page } from "playwright";
-import { mkdirSync } from "fs";
+import { existsSync, mkdirSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { join } from "path";
 import type { Socket } from "net";
 import type {
@@ -51,6 +52,63 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
   ]);
 }
 
+// Detect NixOS and find a working browser executable
+function getBrowserExecutablePath(): string | undefined {
+  const isNixOS = existsSync("/etc/NIXOS");
+
+  if (!isNixOS) {
+    // Not NixOS - let Playwright use its bundled browser
+    return undefined;
+  }
+
+  // On NixOS, Playwright's downloaded browsers won't work due to FHS issues.
+  // Check if user has already configured PLAYWRIGHT_BROWSERS_PATH
+  if (process.env.PLAYWRIGHT_BROWSERS_PATH) {
+    console.log("NixOS detected, using PLAYWRIGHT_BROWSERS_PATH");
+    return undefined; // Let Playwright use the configured path
+  }
+
+  // Try to find system chromium or google-chrome
+  const browserCommands = ["chromium", "google-chrome-stable", "google-chrome"];
+
+  for (const cmd of browserCommands) {
+    try {
+      const browserPath = execSync(`which ${cmd}`, {
+        encoding: "utf8",
+        stdio: ["pipe", "pipe", "pipe"],
+      }).trim();
+
+      if (browserPath && existsSync(browserPath)) {
+        console.log(`NixOS detected, using system browser: ${browserPath}`);
+        return browserPath;
+      }
+    } catch {
+      // Command not found, try next
+    }
+  }
+
+  // No system browser found - provide helpful error
+  throw new Error(
+    `NixOS detected but no compatible browser found.
+
+Playwright's bundled browsers don't work on NixOS. Options:
+
+1. Install chromium (recommended):
+   nix-shell -p chromium --run "npm run start-server"
+
+   Or add to your NixOS config:
+   environment.systemPackages = [ pkgs.chromium ];
+
+2. Use extension mode instead (controls your existing browser):
+   npm run start-extension
+
+3. Set PLAYWRIGHT_BROWSERS_PATH to nixpkgs browsers:
+   nix-shell -p playwright-driver.browsers
+   export PLAYWRIGHT_BROWSERS_PATH=$(nix-build '<nixpkgs>' -A playwright-driver.browsers --no-out-link)
+`
+  );
+}
+
 export async function serve(options: ServeOptions = {}): Promise<DevBrowserServer> {
   const port = options.port ?? 9222;
   const headless = options.headless ?? false;
@@ -79,10 +137,14 @@ export async function serve(options: ServeOptions = {}): Promise<DevBrowserServe
 
   console.log("Launching browser with persistent context...");
 
+  // Get browser executable (handles NixOS detection)
+  const executablePath = getBrowserExecutablePath();
+
   // Launch persistent context - this persists cookies, localStorage, cache, etc.
   const context: BrowserContext = await chromium.launchPersistentContext(userDataDir, {
     headless,
     args: [`--remote-debugging-port=${cdpPort}`],
+    ...(executablePath && { executablePath }),
   });
   console.log("Browser launched with persistent profile...");
 

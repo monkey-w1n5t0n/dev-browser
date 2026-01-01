@@ -6,82 +6,115 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Always use Node.js/npm instead of Bun.
 
+### Skill (Core Server/Client)
+
 ```bash
-# Install dependencies (from skills/dev-browser/ directory)
-cd skills/dev-browser && npm install
+cd skills/dev-browser
 
-# Start the dev-browser server
-cd skills/dev-browser && npm run start-server
-
-# Run dev mode with watch
-cd skills/dev-browser && npm run dev
-
-# Run tests (uses vitest)
-cd skills/dev-browser && npm test
-
-# Run TypeScript check
-cd skills/dev-browser && npx tsc --noEmit
+npm install                    # Install dependencies
+npm run start-server           # Start the dev-browser server (launch mode)
+npm run start-extension        # Start relay server (extension mode)
+npm run dev                    # Run dev mode with watch
+npm test                       # Run tests (vitest)
+npx tsc --noEmit               # TypeScript check
 ```
 
-## Important: Before Completing Code Changes
+### Chrome Extension
 
-**Always run these checks before considering a task complete:**
+```bash
+cd extension
+
+npm install                    # Install dependencies
+npm run dev                    # Dev mode with hot reload
+npm run build                  # Build for production
+npm run zip                    # Create distributable zip
+npm test                       # Run tests (vitest)
+```
+
+### Root (Formatting)
+
+```bash
+npm run format                 # Format all files with Prettier
+npm run format:check           # Check formatting
+```
+
+## Before Completing Code Changes
+
+**Always run these checks:**
 
 1. **TypeScript check**: `npx tsc --noEmit` - Ensure no type errors
 2. **Tests**: `npm test` - Ensure all tests pass
 
-Common TypeScript issues in this codebase:
+Common TypeScript issues:
 
 - Use `import type { ... }` for type-only imports (required by `verbatimModuleSyntax`)
-- Browser globals (`document`, `window`) in `page.evaluate()` callbacks need `declare const document: any;` since DOM lib is not included
+- Browser globals in `page.evaluate()` callbacks: use `globalThis as any` pattern since DOM lib is not included
 
 ## Project Architecture
 
 ### Overview
 
-This is a browser automation tool designed for developers and AI agents. It solves the problem of maintaining browser state across multiple script executions - unlike Playwright scripts that start fresh each time, dev-browser keeps pages alive and reusable.
+A browser automation tool for developers and AI agents that maintains browser state across script executions. Unlike typical Playwright scripts that start fresh, dev-browser keeps pages alive and reusable.
 
-### Structure
+### Two Operating Modes
 
-All source code lives in `skills/dev-browser/`:
+1. **Launch Mode** (default): Launches a persistent Chromium instance
+2. **Extension Mode**: Controls the user's existing Chrome browser via a Chrome extension
 
-- `src/index.ts` - Server: launches persistent Chromium context, exposes HTTP API for page management
-- `src/client.ts` - Client: connects to server, retrieves pages by name via CDP
-- `src/types.ts` - Shared TypeScript types for API requests/responses
-- `src/dom/` - DOM tree extraction utilities for LLM-friendly page inspection
-- `scripts/start-server.ts` - Entry point to start the server
-- `tmp/` - Directory for temporary automation scripts
+### Directory Structure
+
+```
+skills/dev-browser/     # Core automation skill
+  src/
+    index.ts            # Launch mode server (Express + Playwright)
+    relay.ts            # Extension mode relay server (Hono + WebSocket)
+    client.ts           # Client library for connecting to either mode
+    types.ts            # Shared TypeScript types
+    snapshot/           # DOM snapshot utilities for LLM-friendly page inspection
+
+extension/              # Chrome extension (WXT framework)
+  entrypoints/
+    background.ts       # Service worker - main extension logic
+    popup/              # Extension popup UI
+  services/
+    ConnectionManager.ts  # WebSocket connection to relay
+    CDPRouter.ts         # Routes CDP commands to Chrome debugger API
+    TabManager.ts        # Tracks attached tabs/sessions
+    StateManager.ts      # Persists extension state
+```
 
 ### Path Aliases
 
-The project uses `@/` as a path alias to `./src/`. This is configured in both `package.json` (via `imports`) and `tsconfig.json` (via `paths`).
+The skill uses `@/` as a path alias to `./src/`:
 
 ```typescript
-// Import from src/client.ts
 import { connect } from "@/client.js";
-
-// Import from src/index.ts
 import { serve } from "@/index.js";
 ```
 
 ### How It Works
 
-1. **Server** (`serve()` in `src/index.ts`):
-   - Launches Chromium with `launchPersistentContext` (preserves cookies, localStorage)
-   - Exposes HTTP API on port 9222 for page management
-   - Exposes CDP WebSocket endpoint on port 9223
-   - Pages are registered by name and persist until explicitly closed
+**Launch Mode** (`serve()` in `src/index.ts`):
+- Launches Chromium with `launchPersistentContext` (preserves cookies, localStorage)
+- HTTP API on port 9222, CDP WebSocket on port 9223
+- Pages registered by name persist until closed
 
-2. **Client** (`connect()` in `src/client.ts`):
-   - Connects to server's HTTP API
-   - Uses CDP `targetId` to reliably find pages across reconnections
-   - Returns standard Playwright `Page` objects for automation
+**Extension Mode** (`serveRelay()` in `src/relay.ts`):
+- Relay server bridges Playwright clients and Chrome extension
+- Extension connects via WebSocket, receives CDP commands
+- Uses Chrome Debugger API to control user's existing tabs
 
-3. **Key API Endpoints**:
-   - `GET /` - Returns CDP WebSocket endpoint
-   - `GET /pages` - Lists all named pages
-   - `POST /pages` - Gets or creates a page by name (body: `{ name: string }`)
-   - `DELETE /pages/:name` - Closes a page
+**Client** (`connect()` in `src/client.ts`):
+- Works with both modes transparently
+- Uses CDP `targetId` for reliable page lookup
+- Returns standard Playwright `Page` objects
+
+### Key API Endpoints
+
+- `GET /` - Server info (wsEndpoint, mode, extensionConnected)
+- `GET /pages` - List named pages
+- `POST /pages` - Get or create page by name (`{ name: string }`)
+- `DELETE /pages/:name` - Close a page
 
 ### Usage Pattern
 
@@ -89,14 +122,13 @@ import { serve } from "@/index.js";
 import { connect } from "@/client.js";
 
 const client = await connect("http://localhost:9222");
-const page = await client.page("my-page"); // Gets existing or creates new
+const page = await client.page("my-page");
 await page.goto("https://example.com");
 // Page persists for future scripts
-await client.disconnect(); // Disconnects CDP but page stays alive on server
+await client.disconnect();
 ```
 
 ## Node.js Guidelines
 
 - Use `npx tsx` for running TypeScript files
-- Use `dotenv` or similar if you need to load `.env` files
 - Use `node:fs` for file system operations

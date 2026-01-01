@@ -2,13 +2,32 @@ import { chromium } from "playwright";
 import type { Browser, BrowserContext, Page } from "playwright";
 import { beforeAll, afterAll, beforeEach, afterEach, describe, test, expect } from "vitest";
 import { getSnapshotScript, clearSnapshotScriptCache } from "../browser-script";
+import { existsSync } from "node:fs";
+import { execSync } from "node:child_process";
+
+// Get browser executable for NixOS compatibility
+function getTestBrowserExecutable(): string | undefined {
+  if (!existsSync("/etc/NIXOS")) return undefined;
+  if (process.env.PLAYWRIGHT_BROWSERS_PATH) return undefined;
+
+  for (const cmd of ["chromium", "google-chrome-stable", "google-chrome"]) {
+    try {
+      const path = execSync(`which ${cmd}`, { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }).trim();
+      if (path && existsSync(path)) return path;
+    } catch {
+      /* not found */
+    }
+  }
+  return undefined;
+}
 
 let browser: Browser;
 let context: BrowserContext;
 let page: Page;
 
 beforeAll(async () => {
-  browser = await chromium.launch();
+  const executablePath = getTestBrowserExecutable();
+  browser = await chromium.launch(executablePath ? { executablePath } : {});
 });
 
 afterAll(async () => {
